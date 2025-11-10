@@ -1,9 +1,10 @@
+import type { PluginOption, ResolvedConfig, ViteDevServer } from 'vite'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { readdir } from 'node:fs/promises'
 import { basename, dirname, resolve } from 'node:path'
 import { cwd } from 'node:process'
-import FastGlob from 'fast-glob'
 import SVGSpriter from 'svg-sprite'
-import { normalizePath, type PluginOption, type ResolvedConfig, type ViteDevServer } from 'vite'
+import { normalizePath } from 'vite'
 
 export interface Options {
   /**
@@ -150,18 +151,17 @@ async function generateSvgSprite(options: Required<Options>): Promise<string> {
   } = options
   const spriter = new SVGSpriter(generateConfig(outputDir, options))
   const rootDir = icons.replace(/(\/(\*+))+\.(.+)/g, '')
-  const entries = await FastGlob([icons])
+  const files = await readdir(rootDir)
 
-  for (const entry of entries) {
-    if (isSvg.test(entry)) {
-      const relativePath = entry.replace(`${rootDir}/`, '')
+  files
+    .filter(file => isSvg.test(file))
+    .forEach((file) => {
       spriter.add(
-        entry,
-        relativePath,
-        readFileSync(entry, { encoding: 'utf-8' }),
+        `${rootDir}/${file}`,
+        file,
+        readFileSync(`${rootDir}/${file}`, { encoding: 'utf-8' }),
       )
-    }
-  }
+    })
 
   const { result, data } = await spriter.compileAsync()
 
@@ -259,16 +259,21 @@ function ViteSvgSpriteWrapper(options: Options = {}): PluginOption {
         const iconsPath = normalizePaths(root, icons)
         const checkReload = (path: string) => {
           const changedPath = normalizePath(path)
-          if (FastGlob.globSync(iconsPath).includes(changedPath)) {
-            schedule(() => {
-              generateSvgSprite(resolved)
-                .then((res) => {
-                  hot.send({ type: 'full-reload', path: '*' })
-                  successGeneration(res)
-                })
-                .catch(failGeneration)
-            })
-          }
+          if (!changedPath.endsWith('.svg'))
+            return
+          const folderPath = changedPath.substring(0, changedPath.lastIndexOf('/'))
+          const iconPaths = iconsPath.map(ip => ip.substring(0, ip.lastIndexOf('/')))
+          if (!iconPaths.includes(folderPath))
+            return
+
+          schedule(() => {
+            generateSvgSprite(resolved)
+              .then((res) => {
+                hot.send({ type: 'full-reload', path: '*' })
+                successGeneration(res)
+              })
+              .catch(failGeneration)
+          })
         }
 
         watcher.add(iconsPath)

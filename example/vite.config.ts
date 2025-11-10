@@ -6,6 +6,8 @@ export default defineConfig({
     ViteSvgSpriteWrapper({
       icons: 'svg/*.svg',
       outputDir: './public',
+      spriteNormalizeStroke: true,
+      spriteNormalizeFill: true,
     }),
   ],
   build: {

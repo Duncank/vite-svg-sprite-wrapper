@@ -1,5 +1,5 @@
-import SVGSpriter from 'svg-sprite';
 import { PluginOption } from 'vite';
+import SVGSpriter from 'svg-sprite';
 
 interface Options {
     /**
